@@ -1,0 +1,81 @@
+import pandas as pd
+
+# Load trader data
+trader_df = pd.read_csv("/content/historical_data.csv")
+
+# Load sentiment data
+sentiment_df = pd.read_csv("/content/fear_greed_index.csv")
+
+# Remove whitespace from all columns
+trader_df.columns = trader_df.columns.str.strip()
+sentiment_df.columns = sentiment_df.columns.str.strip()
+
+trader_df['Timestamp IST'] = pd.to_datetime(trader_df['Timestamp IST'], errors='coerce')
+trader_df['date'] = trader_df['Timestamp IST'].dt.normalize()  # Strips time to just date
+
+daily_trades = trader_df.groupby('date').agg({
+    'Closed PnL': 'sum',
+    'Account': 'nunique',
+    'Size USD': 'sum'
+}).reset_index()
+
+sentiment_df['date'] = pd.to_datetime(sentiment_df['date']).dt.normalize()
+
+merged_df = pd.merge(daily_trades, sentiment_df, on='date', how='inner')
+print("Merged Rows:", len(merged_df))
+
+print(merged_df.groupby('classification')['Closed PnL'].mean())
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+sns.boxplot(x='classification', y='Closed PnL', data=merged_df)
+plt.title("Closed PnL Distribution During Fear vs Greed")
+plt.show()
+
+sns.lineplot(x='date', y='Closed PnL', hue='classification', data=merged_df)
+plt.title("Closed PnL Over Time by Market Sentiment")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+import matplotlib.dates as mdates
+
+# Set date format on X-axis
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Example: Jan 01
+plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=2))    # Show every 2nd day
+
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.xlabel("Date")
+plt.ylabel("Closed PnL ($)")
+
+sns.lineplot(x='date', y='Closed PnL', hue='classification', data=merged_df, marker='o')
+
+merged_df['rolling_pnl'] = merged_df['Closed PnL'].rolling(window=3).mean()
+
+sns.lineplot(x='date', y='rolling_pnl', data=merged_df, color='black', label='3-Day Avg', linestyle='--')
+
+plt.title(" Closed PnL Trends by Market Sentiment", fontsize=14, fontweight='bold')
+
+import matplotlib.dates as mdates
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(x='date', y='Closed PnL', hue='classification', data=merged_df, marker='o')
+
+# Rolling average trend
+merged_df['rolling_pnl'] = merged_df['Closed PnL'].rolling(window=3).mean()
+sns.lineplot(x='date', y='rolling_pnl', data=merged_df, color='black', label='3-Day Avg', linestyle='--')
+
+plt.title("📊 Closed PnL Trends by Market Sentiment", fontsize=14, fontweight='bold')
+plt.xlabel("Date")
+plt.ylabel("Closed PnL ($)")
+plt.xticks(rotation=45)
+
+# Format dates nicely
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=2))
+
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.legend(title='Sentiment')
+plt.tight_layout()
+plt.show()
